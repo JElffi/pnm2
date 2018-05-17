@@ -1,0 +1,237 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Mar 22 14:23:37 2018
+
+@author: lampio
+"""
+import scipy as sp
+from matplotlib import pyplot as plt
+from scipy import linalg
+from scipy.sparse import coo_matrix
+from scipy.sparse import linalg
+
+def phi_avg_from_Sun_at_Tampere(n):
+    # Gives average q_sun per day
+    # n is day between 0-364
+    # m is month between -0.5 - 11.5
+    m = -0.5 + n/365*12
+    phi_avg = 181.5*sp.sin(0.2683*m + 0.221) + 52.64*sp.sin(0.8171*m + 3.764)
+    if phi_avg < 3.0: # Fit was not perfect for all winter days, a fix
+        phi_avg = 3.0
+    return phi_avg
+
+def T_avg_at_Tampere(n):
+    # Gives average T_air per day
+    # n is day between 0-364
+    # m is month between -0.5 - 11.5
+    m = -0.5 + n/365*12
+    T_avg = 103.9*sp.sin(0.2112*m - 1.029) + 110.5*sp.sin(0.1832*m + 2.188) + 8.141*sp.sin(0.6231*m + 4.37)
+    return T_avg
+
+def T_sky_avg(T_avg):
+    return T_avg - 25.0
+
+def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, printing = False, print_gap = 100):
+    
+    U_ep_memory = float(U_ep) # Store the value for memory
+        
+    T = sp.ones((M,N,N_timesteps))*T0 # Initialization of temperatures
+    TT_old = sp.ones((1,N*M))*T0 # Initialization of old temperatures
+    TT_old = TT_old[0]
+    dr = R/M # Discretization in r-direction
+    dz = Z/N # Discretization in z-direction
+    dz_ep = int(H/dz) # Cell number for energy pile bottom
+    r = sp.linspace(r0, R, M+1) # Boundary locations in r-direction
+    A_r = 2*sp.pi*r*dz # Surface areas in r-direction
+    A_u = sp.pi*(r[1:]**2 - r[0:-1]**2) # Surface areas in z-direction
+    V = A_u*dz # Cell volumes
+    m = V*rho # Cell masses
+    
+    # Constant part of matrix
+    # Coefficients
+    C1 = sp.zeros((M,N))
+    C2 = sp.zeros((M,N))
+    Cu = sp.zeros((M,N))
+    Cd = sp.zeros((M,N))
+    Cp = sp.zeros((M,N))
+    for i in range(M):
+        for j in range(N):
+            C1[i,j] = k*A_r[i]/dr/m[i]/cp
+            C2[i,j] = k*A_r[i+1]/dr/m[i]/cp
+
+            Cu[i,j] = k*A_u[i]/dz/m[i]/cp
+            Cd[i,j] = k*A_u[i]/dz/m[i]/cp
+
+    # insulation for conduction at r = R
+    C2[-1,:] = 0
+    
+    # insulation for conduction at r = r0
+    C1[0,:] = 0
+  
+    # insulation for conduction at r = r0
+    Cu[:,0] = 0
+    Cd[:,-1] = 0
+
+    # Constant coefficients for diagonal
+    for i in range(M):
+        for j in range(N):
+            Cp[i,j] = -(C1[i,j] + C2[i,j] + Cu[i,j] + Cd[i,j] + 1.0/dt)
+
+    # Calculating indexes ans coefficients for sparse matrix
+    II = [] # index i
+    JJ = [] # index j
+    DATA = [] # value
+    for i in range(M):
+        for j in range(N):
+            ii = i + j*M
+            II.append(ii)
+            JJ.append(ii)
+            DATA.append(Cp[i,j])
+            
+            if ii < N*M-1:
+                II.append(ii)
+                JJ.append(ii+1)
+                DATA.append(C2[i,j])
+            
+            if ii > 0:
+                II.append(ii)
+                JJ.append(ii-1)
+                DATA.append(C1[i,j])
+            
+            if ii < N*M - M:
+                II.append(ii)
+                JJ.append(ii+M)
+                DATA.append(Cd[i,j])
+            
+            if ii > M-1:
+                II.append(ii)
+                JJ.append(ii-M)
+                DATA.append(Cu[i,j])
+
+    # Building a sparse matrix (COO-type) for constant coefficients
+    A_const = coo_matrix((DATA, (II, JJ)), shape=(N*M, N*M))
+    
+    # Iteration in time (backward Euler method)
+    for time in range(N_timesteps-1):
+        current_day = time*dt/3600/24 # Day number
+        
+        # Here you have to figure out how to set energy pile OFF
+        # for first year
+        if sp.mod(current_day, 365) < heating_ends or sp.mod(current_day, 365) > heating_starts:
+            U_ep = U_ep_memory
+        else:
+            U_ep = 0.0
+            
+        T_air = T_avg_at_Tampere(sp.mod(current_day, 365))
+        T_sky = T_sky_avg(T_air)
+        phi_avg = phi_avg_from_Sun_at_Tampere(sp.mod(current_day, 365))
+        if printing:
+            if sp.mod(time, print_gap) == 0:
+                print("Iteration round: ", time, " day: ", current_day, " T_ambient: ", T_air, " Solar irradiation: ", phi_avg)
+        
+        b = sp.zeros((N*M,1)) # Source term vector
+        II = [] # i - index
+        JJ = [] # j - index
+        DATA = [] # value
+        for i in range(M):
+            # convection h_air at z = 0
+            ii = i + 0*M
+            II.append(ii)
+            JJ.append(ii)
+            DATA.append(-h_air*A_u[i]/m[i]/cp)
+            b[ii] = b[ii] - h_air*A_u[i]*T_air/m[i]/cp
+            
+            # Sun irradiation at z = 0
+            b[ii] = b[ii] - phi_avg*A_u[i]/m[i]/cp
+            
+            # Radiation exchange with sky at z = 0
+            II.append(ii)
+            JJ.append(ii)
+            DATA.append(-h_rad_sky*A_u[i]/m[i]/cp)
+            b[ii] = b[ii] - h_rad_sky*A_u[i]/m[i]/cp*T_sky
+            
+            
+        for j in range(N):
+            # Energy pile at r = r0
+            ii = 0 + j*M
+            if j < dz_ep:
+                II.append(ii)
+                JJ.append(ii)
+                DATA.append(-U_ep*A_r[0]/m[0]/cp)
+                b[ii] = b[ii] - U_ep*A_r[0]*T_ep/m[0]/cp
+
+        # Effect of last time step temperatures
+        b = b - TT_old.reshape([N*M,1])/dt
+
+        # Sparse matrix for changing coefficients
+        A_new = coo_matrix((DATA, (II, JJ)), shape=(N*M, N*M))
+        
+        # Solving linear system by summing constant and changing part
+        TT = sp.sparse.linalg.spsolve((A_const + A_new).tocsc(), b)
+        
+        # Forming a matrix T from TT vector
+        for i in range(M):
+            for j in range(N):
+                ii = i + j*M
+                T[i,j,time+1] = TT[ii]
+        
+        # Calculate that the overall heat balance holds for domain
+
+        TT_old = TT.astype(float)
+
+    return T
+
+
+# Calculations
+
+# Fill correct values to "<you must determine>" spaces
+
+# Dimensions
+r0 = <you must determine> # Radius of energy pile
+R = <you must determine> # Outer radius of calculation domain
+Z = <you must determine> # Height of domain
+H = <you must determine> # Height of energy pile
+
+# Time stepping details
+dt = <you must determine> # Time step length
+N_timesteps = <you must determine> # Number of time steps
+
+# Discretization
+# Tip: try out first with coarse meshes and refine just for actual calculations
+# Caution: In this code H/(Z/N) must be an integer!
+# Otherwise: Some leftover height of energy pile is not included in calculations
+M = <you must determine> # Number of control volumes in r - direction
+N = <you must determine> # Number of control volumes in z - direction 
+
+# Thermal properties of soil
+k = <you must determine>
+rho = <you must determine>
+cp = <you must determine>
+
+# Boundary conditions
+h_air = <you must determine> # Average convective heat transfer coefficient
+h_rad_sky = <you must determine> # Average radiation heat transfer coefficient 
+U_ep = <you must determine> # U-value of energy pile
+
+# Temperatures
+T_ep = <you must determine> # Fluid temperature
+T0 = <you must determine> # Initial temperature of soil
+
+# Heating days per one year (days 0-364)
+heating_starts = <you must determine> # September 1st
+heating_ends = <you must determine> # 30th April 
+
+# Priting of iteration rounds
+printing = True
+print_gap = 100 # You can variate this
+
+# Running the code
+T = energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, printing, print_gap)
+
+# Printing the results
+# Example figure, you must refine this better to show dimensions etc.!
+plt.figure(1)
+plt.contourf(T[:,:,-1], 20, cmap='jet') # Temperature distribution at last time step
+plt.colorbar()
+
+
