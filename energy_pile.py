@@ -31,6 +31,13 @@ def T_avg_at_Tampere(n):
 def T_sky_avg(T_avg):
     return T_avg - 25.0
 
+def plot_results(T):
+    # Printing the results
+    # Example figure, you must refine this better to show dimensions etc.!
+    plt.figure()
+    plt.contourf(T[:,:,-1], 20, cmap='jet') # Temperature distribution at last time step
+    plt.colorbar()
+
 def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, printing = False, print_gap = 100):
     
     U_ep_memory = float(U_ep) # Store the value for memory
@@ -117,7 +124,7 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
         
         # Here you have to figure out how to set energy pile OFF
         # for first year
-        if sp.mod(current_day, 365) < heating_ends or sp.mod(current_day, 365) > heating_starts:
+        if current_day > 606 and (sp.mod(current_day, 365) < heating_ends or sp.mod(current_day, 365) > heating_starts):
             U_ep = U_ep_memory
         else:
             U_ep = 0.0
@@ -127,7 +134,10 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
         phi_avg = phi_avg_from_Sun_at_Tampere(sp.mod(current_day, 365))
         if printing:
             if sp.mod(time, print_gap) == 0:
-                print("Iteration round: ", time, " day: ", current_day, " T_ambient: ", T_air, " Solar irradiation: ", phi_avg)
+                print("Iteration round:", time, 
+                      "day:", '{:6.2f}'.format(current_day), 
+                      "T_ambient:", '{:6.2f}'.format(T_air), 
+                      "Solar irradiation:", '{:6.2f}'.format(phi_avg))
         
         b = sp.zeros((N*M,1)) # Source term vector
         II = [] # i - index
@@ -230,10 +240,6 @@ print_gap = 100 # You can variate this
 # Running the code
 T = energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, printing, print_gap)
 
-# Printing the results
-# Example figure, you must refine this better to show dimensions etc.!
-plt.figure(1)
-plt.contourf(T[:,:,-1], 20, cmap='jet') # Temperature distribution at last time step
-plt.colorbar()
+plot_results(T)
 
 
