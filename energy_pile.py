@@ -187,41 +187,43 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
 # Fill correct values to "<you must determine>" spaces
 
 # Dimensions
-r0 = <you must determine> # Radius of energy pile
-R = <you must determine> # Outer radius of calculation domain
-Z = <you must determine> # Height of domain
-H = <you must determine> # Height of energy pile
+r0 = 0.6 # Radius of energy pile m
+R = 10 # Outer radius of calculation domain m
+Z = 30 # Height of domain m
+H = 15 + 4 # Height of energy pile m
 
 # Time stepping details
-dt = <you must determine> # Time step length
-N_timesteps = <you must determine> # Number of time steps
+dt = 60*30 # Time step length s
+N_days = 365
+N_timesteps = int(N_days*3600*24/dt) # Number of time steps
+print(N_timesteps)
 
 # Discretization
 # Tip: try out first with coarse meshes and refine just for actual calculations
 # Caution: In this code H/(Z/N) must be an integer!
 # Otherwise: Some leftover height of energy pile is not included in calculations
-M = <you must determine> # Number of control volumes in r - direction
-N = <you must determine> # Number of control volumes in z - direction 
+M = R # Number of control volumes in r - direction
+N = Z # Number of control volumes in z - direction 
 
 # Thermal properties of soil
-k = <you must determine>
-rho = <you must determine>
-cp = <you must determine>
+k = 1.1 #W/mK
+rho = 1750 # kg/m3
+cp = 1380 # J/kgK
 
 # Boundary conditions
-h_air = <you must determine> # Average convective heat transfer coefficient
-h_rad_sky = <you must determine> # Average radiation heat transfer coefficient 
-U_ep = <you must determine> # U-value of energy pile
+h_air = 10 # Average convective heat transfer coefficient W/m2K
+h_rad_sky = 4*5.67e-8*25**3 # Average radiation heat transfer coefficient
+U_ep = 10 # U-value of energy pile
 
 # Temperatures
-T_ep = <you must determine> # Fluid temperature
-T0 = <you must determine> # Initial temperature of soil
+T_ep = -6 + 4/3 # Fluid temperature C
+T0 = 5 # Initial temperature of soil
 
 # Heating days per one year (days 0-364)
-heating_starts = <you must determine> # September 1st
-heating_ends = <you must determine> # 30th April 
+heating_starts = 31+28+31+30+31+30+31+31 # September 1st
+heating_ends = 31+28+31+29 # 30th April 
 
-# Priting of iteration rounds
+# Printing of iteration rounds
 printing = True
 print_gap = 100 # You can variate this
 
