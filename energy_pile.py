@@ -189,7 +189,7 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
 
         TT_old = TT.astype(float)
         
-        print(T)
+#        print(T)
         
         if plot_gap != 0:
             if sp.mod(time, plot_gap) == 0:
@@ -212,16 +212,16 @@ H = 15 + 4 # Height of energy pile m
 
 # Time stepping details
 dt = 60*60 # Time step length s
-N_days = 30
+N_days = 2*365
 N_timesteps = int(N_days*3600*24/dt) # Number of time steps
-print(N_timesteps)
+print("Total timesteps:",N_timesteps)
 
 # Discretization
 # Tip: try out first with coarse meshes and refine just for actual calculations
 # Caution: In this code H/(Z/N) must be an integer!
 # Otherwise: Some leftover height of energy pile is not included in calculations
-M = R # Number of control volumes in r - direction
-N = Z # Number of control volumes in z - direction 
+M = R*2 # Number of control volumes in r - direction
+N = Z*2 # Number of control volumes in z - direction 
 
 # Thermal properties of soil
 k = 1.1 #W/mK
@@ -230,7 +230,14 @@ cp = 1380 # J/kgK
 
 # Boundary conditions
 h_air = 10 # Average convective heat transfer coefficient W/m2K
-h_rad_sky = 4*5.67e-8*25**3 # Average radiation heat transfer coefficient
+h_rad_sky = 4*5.67e-8*40**3 # Average radiation heat transfer coefficient
+
+# U-value of energy pile
+r1 = 0.1
+r2 = r0
+l = 0.3
+S = 2*sp.pi*H/sp.arccosh((r1**2+r2**2-l**2)/(2*r1*r2))
+print("Shape factor:",S)
 U_ep = 10 # U-value of energy pile
 
 # Temperatures
@@ -243,8 +250,8 @@ heating_ends = 31+28+31+29 # 30th April
 
 # Printing of iteration rounds
 # 0 for no printing/plotting
-print_gap = 0 # You can variate this
-plot_gap = 10*24
+print_gap = 100 # You can variate this
+plot_gap = 0
 
 # Running the code
 T = energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, print_gap, plot_gap)
