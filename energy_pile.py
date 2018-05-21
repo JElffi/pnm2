@@ -38,7 +38,7 @@ def plot_results(T, timestep):
     plt.contourf(T[:,:,timestep], 20, cmap='jet') # Temperature distribution at last time step
     plt.colorbar()
 
-def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, printing = False, print_gap = 100):
+def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, print_gap = 100, plot_gap = 0):
     
     U_ep_memory = float(U_ep) # Store the value for memory
         
