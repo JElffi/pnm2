@@ -31,11 +31,11 @@ def T_avg_at_Tampere(n):
 def T_sky_avg(T_avg):
     return T_avg - 25.0
 
-def plot_results(T):
+def plot_results(T, timestep):
     # Printing the results
     # Example figure, you must refine this better to show dimensions etc.!
     plt.figure()
-    plt.contourf(T[:,:,-1], 20, cmap='jet') # Temperature distribution at last time step
+    plt.contourf(T[:,:,timestep], 20, cmap='jet') # Temperature distribution at last time step
     plt.colorbar()
 
 def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, printing = False, print_gap = 100):
@@ -132,7 +132,7 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
         T_air = T_avg_at_Tampere(sp.mod(current_day, 365))
         T_sky = T_sky_avg(T_air)
         phi_avg = phi_avg_from_Sun_at_Tampere(sp.mod(current_day, 365))
-        if printing:
+        if print_gap != 0:
             if sp.mod(time, print_gap) == 0:
                 print("Iteration round:", time, 
                       "day:", '{:6.2f}'.format(current_day), 
@@ -188,6 +188,14 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
         # Calculate that the overall heat balance holds for domain
 
         TT_old = TT.astype(float)
+        
+        print(T)
+        
+        if plot_gap != 0:
+            if sp.mod(time, plot_gap) == 0:
+                print("Iteration round:", time, 
+                      "day:", '{:6.2f}'.format(current_day))
+                plot_results(T, time)
 
     return T
 
@@ -203,8 +211,8 @@ Z = 30 # Height of domain m
 H = 15 + 4 # Height of energy pile m
 
 # Time stepping details
-dt = 60*30 # Time step length s
-N_days = 365
+dt = 60*60 # Time step length s
+N_days = 30
 N_timesteps = int(N_days*3600*24/dt) # Number of time steps
 print(N_timesteps)
 
@@ -234,12 +242,13 @@ heating_starts = 31+28+31+30+31+30+31+31 # September 1st
 heating_ends = 31+28+31+29 # 30th April 
 
 # Printing of iteration rounds
-printing = True
-print_gap = 100 # You can variate this
+# 0 for no printing/plotting
+print_gap = 0 # You can variate this
+plot_gap = 10*24
 
 # Running the code
-T = energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, printing, print_gap)
+T = energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, print_gap, plot_gap)
 
-plot_results(T)
+plot_results(T, -1)
 
 
