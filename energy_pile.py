@@ -119,6 +119,8 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
     # Building a sparse matrix (COO-type) for constant coefficients
     A_const = coo_matrix((DATA, (II, JJ)), shape=(N*M, N*M))
     
+    phi_values = []
+    
     # Iteration in time (backward Euler method)
     for time in range(N_timesteps-1):
         current_day = time*dt/3600/24 # Day number
@@ -188,6 +190,17 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
         
         # Calculate that the overall heat balance holds for domain
 
+        # Calculating heat transfer from soil to energy pile
+        if U_ep != 0:
+            dT_sum = 0.0
+            for i in range(N):
+                dT_sum += T[1,i,time+1] - T[0,i,time+1]
+                
+            phi = dT_sum*2*sp.pi*r0*dz*U_ep/H # W/m
+            phi_values.append(phi)
+        else:
+            phi_values.append(0)
+
         TT_old = TT.astype(float)
         
 #        print(T)
@@ -198,7 +211,7 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
                       "day:", '{:6.2f}'.format(current_day))
                 plot_results(T, time)
 
-    return T
+    return T, phi_values
 
 
 # Calculations
@@ -255,8 +268,8 @@ print_gap = 100 # You can variate this
 plot_gap = 0
 
 # Running the code
-T = energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, print_gap, plot_gap)
-
+T, phi_values = energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, print_gap, plot_gap)
+plt.plot(phi_values)
 plot_results(T, -1)
 
 T1 = sp.transpose(T, (1,0,2))
