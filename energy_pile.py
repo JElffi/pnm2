@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 from scipy import linalg
 from scipy.sparse import coo_matrix
 from scipy.sparse import linalg
+from seaborn import heatmap
 
 def phi_avg_from_Sun_at_Tampere(n):
     # Gives average q_sun per day
@@ -258,4 +259,9 @@ T = energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
 
 plot_results(T, -1)
 
+T1 = sp.transpose(T, (1,0,2))
 
+plt.figure(figsize=(12, 8))
+heatmap(T1[:,:,-1])
+plt.xticks(sp.arange(1, 20, 2), sp.arange(1, 11))
+plt.yticks(sp.arange(0, 60, 10), sp.arange(0, 31, 5))
