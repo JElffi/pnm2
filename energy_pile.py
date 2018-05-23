@@ -202,11 +202,10 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
         
         phi_soil = 0.0
         # Heat in soil
-        if time > 0:
-            for i in range(M):
-                for j in range(N):
-                    dT_cell = T[i,j,time+1] - T[i,j,time]
-                    phi_soil += cp*m[i]*dT_cell/dt
+        for i in range(M):
+            for j in range(N):
+                dT_cell = T[i,j,time] - T[i,j,time+1]
+                phi_soil += cp*m[i]*dT_cell/dt
                 
         phi_values['phi_soil'].append(phi_soil)
         
@@ -256,7 +255,7 @@ H = 15 + 4 # Height of energy pile m
 
 # Time stepping details
 dt = 60*60*24 # Time step length s
-N_days = 1*365
+N_days = 7*365
 N_timesteps = int(N_days*3600*24/dt) # Number of time steps
 print("Total timesteps:",N_timesteps)
 
@@ -314,10 +313,17 @@ plt.xticks(sp.arange(1, M, cpmR), sp.arange(1, 11))
 plt.yticks(sp.arange(0, N, cpmZ), sp.arange(0, 31))
 
 #%%
-fig = plt.figure(figsize=(12, 10))
-plt.plot(phi_values['phi_air'])
-plt.plot(phi_values['phi_sun'])
-plt.plot(phi_values['phi_sky'])
-plt.plot(phi_values['energy_pile'])
-plt.plot(phi_values['phi_soil'])
+fig, ax = plt.subplots()
+ax.plot(phi_values['phi_air'], label='Air')
+ax.plot(phi_values['phi_sun'], label='Sun')
+ax.plot(phi_values['phi_sky'], label='Sky')
+ax.plot(phi_values['energy_pile'], label='Energy pile')
+ax.plot(phi_values['phi_soil'], label='Soil')
+ax.plot(phi_values['phi_total'], label='Total')
+ax.legend()
+
+plt.figure()
 plt.plot(phi_values['phi_total'])
+
+print("max",max(phi_values['phi_total']))
+print("mean",sp.mean(phi_values['phi_total']))
