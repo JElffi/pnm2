@@ -40,7 +40,6 @@ def plot_results(T, timestep):
     plt.colorbar()
 
 def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, print_gap = 100, plot_gap = 0):
-    
     U_ep_memory = float(U_ep) # Store the value for memory
         
     T = sp.ones((M,N,N_timesteps))*T0 # Initialization of temperatures
@@ -54,6 +53,8 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
     A_u = sp.pi*(r[1:]**2 - r[0:-1]**2) # Surface areas in z-direction
     V = A_u*dz # Cell volumes
     m = V*rho # Cell masses
+    print ("A_r", A_r)
+    print ("A_u", A_u)
     
     # Constant part of matrix
     # Coefficients
@@ -119,7 +120,9 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
     # Building a sparse matrix (COO-type) for constant coefficients
     A_const = coo_matrix((DATA, (II, JJ)), shape=(N*M, N*M))
     
-    phi_values = []
+    phi_values = {'energy_pile': [], 
+                  'phi_sun': [],
+                  'phi_air': [] }
     
     # Iteration in time (backward Euler method)
     for time in range(N_timesteps-1):
@@ -135,12 +138,7 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
         T_air = T_avg_at_Tampere(sp.mod(current_day, 365))
         T_sky = T_sky_avg(T_air)
         phi_avg = phi_avg_from_Sun_at_Tampere(sp.mod(current_day, 365))
-        if print_gap != 0:
-            if sp.mod(time, print_gap) == 0:
-                print("Iteration round:", time, 
-                      "day:", '{:6.2f}'.format(current_day), 
-                      "T_ambient:", '{:6.2f}'.format(T_air), 
-                      "Solar irradiation:", '{:6.2f}'.format(phi_avg))
+        phi_values['phi_sun'].append(phi_avg*sp.pi*R**2)
         
         b = sp.zeros((N*M,1)) # Source term vector
         II = [] # i - index
@@ -189,6 +187,13 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
                 T[i,j,time+1] = TT[ii]
         
         # Calculate that the overall heat balance holds for domain
+        phi_air = 0.0
+        for i in range(M):
+            
+            phi_air += h_air*A_u[i]*(T_air-T[i,0,time+1])
+            print (i, "A_u", A_u[i], "T_air", T_air, "T_i", T[i, 0, time+1]
+            , "phi_air", phi_air)
+        phi_values['phi_air'].append(phi_air)
 
         # Calculating heat transfer from soil to energy pile
         if U_ep != 0:
@@ -197,13 +202,19 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
                 dT_sum += T[1,i,time+1] - T[0,i,time+1]
                 
             phi = dT_sum*2*sp.pi*r0*dz*U_ep/H # W/m
-            phi_values.append(phi)
+            phi_values['energy_pile'].append(phi)
         else:
-            phi_values.append(0)
+            phi_values['energy_pile'].append(0)
 
         TT_old = TT.astype(float)
         
-#        print(T)
+        if print_gap != 0:
+            if sp.mod(time, print_gap) == 0:
+                print("Iteration round:", time, 
+                      "day:", '{:6.2f}'.format(current_day), 
+                      "T_ambient:", '{:6.2f}'.format(T_air), 
+                      "Solar irradiation:", '{:6.2f}'.format(phi_avg*sp.pi*R**2),
+                      "phi_air", '{:6.2f}'.format(sp.sum(phi_air)))
         
         if plot_gap != 0:
             if sp.mod(time, plot_gap) == 0:
@@ -225,8 +236,8 @@ Z = 30 # Height of domain m
 H = 15 + 4 # Height of energy pile m
 
 # Time stepping details
-dt = 60*60 # Time step length s
-N_days = 2*365
+dt = 60*60*24 # Time step length s
+N_days = 1*365
 N_timesteps = int(N_days*3600*24/dt) # Number of time steps
 print("Total timesteps:",N_timesteps)
 
@@ -234,8 +245,10 @@ print("Total timesteps:",N_timesteps)
 # Tip: try out first with coarse meshes and refine just for actual calculations
 # Caution: In this code H/(Z/N) must be an integer!
 # Otherwise: Some leftover height of energy pile is not included in calculations
-M = R*2 # Number of control volumes in r - direction
-N = Z*2 # Number of control volumes in z - direction 
+cpmR = 5 # Cells per meter
+cpmZ = 5 # Cells per meter
+M = R*cpmR # Number of control volumes in r - direction
+N = Z*cpmZ # Number of control volumes in z - direction 
 
 # Thermal properties of soil
 k = 1.1 #W/mK
@@ -247,12 +260,14 @@ h_air = 10 # Average convective heat transfer coefficient W/m2K
 h_rad_sky = 4*5.67e-8*40**3 # Average radiation heat transfer coefficient
 
 # U-value of energy pile
-r1 = 0.1
+r1 = 0.028
 r2 = r0
 l = 0.3
+k_conc = 1 # W/mK
 S = 2*sp.pi*H/sp.arccosh((r1**2+r2**2-l**2)/(2*r1*r2))
-print("Shape factor:",S)
-U_ep = 10 # U-value of energy pile
+#U_ep = k_conc*S/(2*sp.pi*r0*H) # U-value of energy pile
+U_ep = 3
+print("Shape factor:",S, "U_ep:", U_ep)
 
 # Temperatures
 T_ep = -6 + 4/3 # Fluid temperature C
@@ -264,17 +279,17 @@ heating_ends = 31+28+31+29 # 30th April
 
 # Printing of iteration rounds
 # 0 for no printing/plotting
-print_gap = 100 # You can variate this
+print_gap = 10 # You can variate this
 plot_gap = 0
 
 # Running the code
 T, phi_values = energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, print_gap, plot_gap)
-plt.plot(phi_values)
+#plt.plot(phi_values)
 plot_results(T, -1)
 
 T1 = sp.transpose(T, (1,0,2))
 
 plt.figure(figsize=(12, 8))
 heatmap(T1[:,:,-1])
-plt.xticks(sp.arange(1, 20, 2), sp.arange(1, 11))
-plt.yticks(sp.arange(0, 60, 10), sp.arange(0, 31, 5))
+plt.xticks(sp.arange(1, M, cpmR), sp.arange(1, 11))
+plt.yticks(sp.arange(0, N, cpmZ), sp.arange(0, 31))
