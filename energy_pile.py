@@ -124,7 +124,8 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
                   'phi_sun': [],
                   'phi_air': [],
                   'phi_sky': [],
-                  'phi_total': []}
+                  'phi_total': [],
+                  'phi_soil': []}
     
     # Iteration in time (backward Euler method)
     for time in range(N_timesteps-1):
@@ -189,7 +190,7 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
                 ii = i + j*M
                 T[i,j,time+1] = TT[ii]
         
-        # Calculate that the overall heat balance holds for domain
+        # phi_air and phi_sky
         phi_air = 0.0
         phi_sky = 0.0
         for i in range(M):
@@ -198,6 +199,16 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
             
         phi_values['phi_air'].append(phi_air)
         phi_values['phi_sky'].append(phi_sky)
+        
+        phi_soil = 0.0
+        # Heat in soil
+        if time > 0:
+            for i in range(M):
+                for j in range(N):
+                    dT_cell = T[i,j,time+1] - T[i,j,time]
+                    phi_soil += cp*m[i]*dT_cell/dt
+                
+        phi_values['phi_soil'].append(phi_soil)
         
         # Calculating heat transfer from soil to energy pile
         if U_ep != 0:
@@ -210,7 +221,9 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
             phi_pile = 0
         
         phi_values['energy_pile'].append(phi_pile)
-        phi_values['phi_total'].append(phi_sun+phi_sky+phi_air+phi_pile*H)
+        
+        # Overall energy balance
+        phi_values['phi_total'].append(phi_sun+phi_sky+phi_air+phi_pile*H+phi_soil)
 
         TT_old = TT.astype(float)
         
@@ -243,7 +256,7 @@ H = 15 + 4 # Height of energy pile m
 
 # Time stepping details
 dt = 60*60*24 # Time step length s
-N_days = 3*365
+N_days = 1*365
 N_timesteps = int(N_days*3600*24/dt) # Number of time steps
 print("Total timesteps:",N_timesteps)
 
@@ -301,9 +314,10 @@ plt.xticks(sp.arange(1, M, cpmR), sp.arange(1, 11))
 plt.yticks(sp.arange(0, N, cpmZ), sp.arange(0, 31))
 
 #%%
-plt.figure()
+fig = plt.figure(figsize=(12, 10))
 plt.plot(phi_values['phi_air'])
 plt.plot(phi_values['phi_sun'])
 plt.plot(phi_values['phi_sky'])
 plt.plot(phi_values['energy_pile'])
+plt.plot(phi_values['phi_soil'])
 plt.plot(phi_values['phi_total'])
