@@ -40,6 +40,7 @@ def plot_results(T, timestep):
     plt.colorbar()
 
 def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky, U_ep, T_ep, T0, heating_starts, heating_ends, print_gap = 100, plot_gap = 0):
+    
     U_ep_memory = float(U_ep) # Store the value for memory
         
     T = sp.ones((M,N,N_timesteps))*T0 # Initialization of temperatures
@@ -53,8 +54,7 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
     A_u = sp.pi*(r[1:]**2 - r[0:-1]**2) # Surface areas in z-direction
     V = A_u*dz # Cell volumes
     m = V*rho # Cell masses
-    print ("A_r", A_r)
-    print ("A_u", A_u)
+
     
     # Constant part of matrix
     # Coefficients
@@ -122,7 +122,9 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
     
     phi_values = {'energy_pile': [], 
                   'phi_sun': [],
-                  'phi_air': [] }
+                  'phi_air': [],
+                  'phi_sky': [],
+                  'phi_total': []}
     
     # Iteration in time (backward Euler method)
     for time in range(N_timesteps-1):
@@ -138,7 +140,8 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
         T_air = T_avg_at_Tampere(sp.mod(current_day, 365))
         T_sky = T_sky_avg(T_air)
         phi_avg = phi_avg_from_Sun_at_Tampere(sp.mod(current_day, 365))
-        phi_values['phi_sun'].append(phi_avg*sp.pi*R**2)
+        phi_sun = phi_avg*sp.pi*R**2
+        phi_values['phi_sun'].append(phi_sun)
         
         b = sp.zeros((N*M,1)) # Source term vector
         II = [] # i - index
@@ -188,23 +191,26 @@ def energy_pile(r0, R, Z, H, dt, N_timesteps, M, N, k, rho, cp, h_air, h_rad_sky
         
         # Calculate that the overall heat balance holds for domain
         phi_air = 0.0
+        phi_sky = 0.0
         for i in range(M):
-            
             phi_air += h_air*A_u[i]*(T_air-T[i,0,time+1])
-            print (i, "A_u", A_u[i], "T_air", T_air, "T_i", T[i, 0, time+1]
-            , "phi_air", phi_air)
+            phi_sky += h_rad_sky*A_u[i]*(T_sky-T[i,0,time+1])
+            
         phi_values['phi_air'].append(phi_air)
-
+        phi_values['phi_sky'].append(phi_sky)
+        
         # Calculating heat transfer from soil to energy pile
         if U_ep != 0:
             dT_sum = 0.0
             for i in range(N):
-                dT_sum += T[1,i,time+1] - T[0,i,time+1]
+                dT_sum += T[0,i,time+1] - T[1,i,time+1]
                 
-            phi = dT_sum*2*sp.pi*r0*dz*U_ep/H # W/m
-            phi_values['energy_pile'].append(phi)
+            phi_pile = dT_sum*2*sp.pi*r0*dz*U_ep/H # W/m
         else:
-            phi_values['energy_pile'].append(0)
+            phi_pile = 0
+        
+        phi_values['energy_pile'].append(phi_pile)
+        phi_values['phi_total'].append(phi_sun+phi_sky+phi_air+phi_pile*H)
 
         TT_old = TT.astype(float)
         
@@ -237,7 +243,7 @@ H = 15 + 4 # Height of energy pile m
 
 # Time stepping details
 dt = 60*60*24 # Time step length s
-N_days = 1*365
+N_days = 3*365
 N_timesteps = int(N_days*3600*24/dt) # Number of time steps
 print("Total timesteps:",N_timesteps)
 
@@ -293,3 +299,11 @@ plt.figure(figsize=(12, 8))
 heatmap(T1[:,:,-1])
 plt.xticks(sp.arange(1, M, cpmR), sp.arange(1, 11))
 plt.yticks(sp.arange(0, N, cpmZ), sp.arange(0, 31))
+
+#%%
+plt.figure()
+plt.plot(phi_values['phi_air'])
+plt.plot(phi_values['phi_sun'])
+plt.plot(phi_values['phi_sky'])
+plt.plot(phi_values['energy_pile'])
+plt.plot(phi_values['phi_total'])
